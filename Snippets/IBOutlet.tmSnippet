@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>content</key>
+	<string>@property (weak, nonatomic) IBOutlet ${1:type} * ${2:propname};</string>
+	<key>name</key>
+	<string>IBOutlet</string>
+	<key>scope</key>
+	<string>source.objc, source.objc++</string>
+	<key>tabTrigger</key>
+	<string>iboutlet</string>
+	<key>uuid</key>
+	<string>6F6947BD-AA9C-48D9-9CD8-B4AF1C3B91A0</string>
+</dict>
+</plist>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>content</key>
+	<string>- (IBAction)${1:actionName}${2/\S+ ?\*?/:(/}${2:id}${2/\S+ ?\*?/)/}${3:${2/\S+ ?\*?/sender/}};</string>
+	<key>name</key>
+	<string>IBAction</string>
+	<key>scope</key>
+	<string>source.objc, source.objc++</string>
+	<key>tabTrigger</key>
+	<string>ibaction</string>
+	<key>uuid</key>
+	<string>8816055C-A963-4F5A-A990-2FF8A52FF600</string>
+</dict>
+</plist>

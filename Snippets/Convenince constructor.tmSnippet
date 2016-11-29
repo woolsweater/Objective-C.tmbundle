@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>content</key>
+	<string>+ (instancetype)${1:type}${2:argdesc}:(${3:argtype} *)${4:argname}
+{
+    return [[self alloc] init${2:argdesc}:${4:argname}];
+}
+
+- (instancetype)init${2:argdesc}:(${3:argtype} *)${4:argname}
+{
+    self = [super init];
+    if( !self ) return nil;
+    
+    _${4:argname} = ${4:argname};
+    
+    return self;
+}</string>
+	<key>name</key>
+	<string>Convenince constructor</string>
+	<key>scope</key>
+	<string>source.objc, source.objc++</string>
+	<key>tabTrigger</key>
+	<string>convc</string>
+	<key>uuid</key>
+	<string>153D5487-2D92-4512-A1E0-DCE2F2C669AC</string>
+</dict>
+</plist>
