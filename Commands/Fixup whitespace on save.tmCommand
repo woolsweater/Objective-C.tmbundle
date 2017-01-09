@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/local/bin/gsed -rf
+s/(.*\S)?\s+$/\1/
+$ a\</string>
+	<key>input</key>
+	<string>document</string>
+	<key>inputFormat</key>
+	<string>text</string>
+	<key>name</key>
+	<string>Fixup whitespace on save</string>
+	<key>outputCaret</key>
+	<string>interpolateByChar</string>
+	<key>outputFormat</key>
+	<string>text</string>
+	<key>outputLocation</key>
+	<string>replaceDocument</string>
+	<key>scope</key>
+	<string>source.objc</string>
+	<key>semanticClass</key>
+	<string>callback.document.will-save</string>
+	<key>uuid</key>
+	<string>6F429D63-B23C-4A5B-A9A1-2F00700D868B</string>
+	<key>version</key>
+	<integer>2</integer>
+</dict>
+</plist>
