@@ -18,7 +18,7 @@
     return self;
 }</string>
 	<key>name</key>
-	<string>Convenince constructor</string>
+	<string>Convenience constructor</string>
 	<key>scope</key>
 	<string>source.objc, source.objc++</string>
 	<key>tabTrigger</key>

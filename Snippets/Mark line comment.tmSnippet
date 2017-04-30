@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
 	<key>content</key>
-	<string>- (IBAction)${1:actionName}${2/\S+ ?\*?/:(/}${2:id}${2/\S+ ?\*?/)/}${3:${2/\S+ ?\*?/sender/}};</string>
+	<string>//MARK:- $1</string>
 	<key>name</key>
-	<string>IBAction</string>
+	<string>Mark line comment</string>
 	<key>scope</key>
-	<string>source.objc, source.objc++</string>
+	<string>source.objc</string>
 	<key>tabTrigger</key>
-	<string>ibact</string>
+	<string>cmark</string>
 	<key>uuid</key>
-	<string>8816055C-A963-4F5A-A990-2FF8A52FF600</string>
+	<string>01D1FD98-0621-4AC6-9225-7BE139375BB1</string>
 </dict>
 </plist>
