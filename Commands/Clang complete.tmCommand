@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/local/bin/python3
+
+import re
+import os
+import plistlib
+import subprocess
+import sys
+from collections import defaultdict
+
+class TMDocument:
+    """
+    Represents a TextMate document for purposes of clang code completion.
+    """
+    def __init__(self, environ):
+        # Supress KeyErrors for nonexistent keys in favor of returning None
+        self.environment = optionaldict(environ)
+
+    @property
+    def completion_location(self):
+        """
+        The position pair for the start of the current word, 'line:column'
+
+        clang's completion requires the column to be at the beginning of the token.
+        """
+        line_number = self.environment["TM_LINE_NUMBER"]
+        line = self.environment["TM_CURRENT_LINE"]
+        word = self.environment["TM_CURRENT_WORD"]
+        word_start_index = line.find(word)
+        return "{}:{}".format(line_number, word_start_index)
+
+    @property
+    def sdk_path(self):
+        """
+        Path to the correct SDK for the project. This looks first for the
+        environment variable `$OBJC_SDK_PATH` (presumably from a
+        .tm_properties file). If that is found, its value is used. If not,
+        then if `$OBJC_PLATFORM` is either `iphoneos` or `macosx`, its value
+        is used to get the path from `xcrun`. Otherwise, the current OS X SDK
+        is returned.
+        """
+        sdk_path = self.environment["OBJC_SDK_PATH"]
+        if not sdk_path:
+            platform = self.environment["OBJC_PLATFORM"] or "macosx"
+            command = ["xcrun", "--show-sdk-path", "--sdk", platform]
+            try:
+                sdk_path = subprocess.check_output(command).decode('utf-8')
+            except subprocess.CalledProcessError:
+                return None
+        return sdk_path.strip()
+
+    @property
+    def project_dir(self):
+        """
+        Path to the source root of the current project: either the value of
+        `$OBJC_SOURCE_ROOT` (preferred, from a .tm_properties file) or
+        `$TM_PROJECT_DIRECTORY`.
+        """
+        return (self.environment["OBJC_PROJECT_PATH"] or
+                self.environment["TM_PROJECT_DIRECTORY"])
+                
+    @property
+    def current_word(self):
+        return self.environment["TM_CURRENT_WORD"]
+
+class optionaldict(defaultdict):
+    """
+    A defaultdict that disregards KeyErrors and returns None for missing keys.
+    """
+    def __init__(self, *original, **kwargs):
+        super().__init__(lambda: None, *original, **kwargs)
+
+def complete(environ):
+
+    choices = list(get_completion_list(environ))
+    environment = optionaldict(environ)
+
+    tm_dialog = environment["DIALOG"]
+    if not choices or not tm_dialog:
+        return
+
+    choice_command = [
+        tm_dialog, "popup", #"--returnChoice",
+        "--alreadyTyped", environment["TM_CURRENT_WORD"],
+        # "--additionalWordCharacters", "'_'",
+        "--caseInsensitive"
+    ]
+
+    # Put the choices dicts into a plist dict under the key "suggestions"
+    plist = plistlib.dumps({"suggestions" : choices})
+    # plistIO = StringIO(plist.decode('utf-8'))
+
+    # Run the popup command, passing that plist
+    # choice_process = subprocess.Popen(choice_command, stdin=subprocess.PIPE, stderr=os.devnull, stdout=os.devnull, close_fds=True)
+    try:
+        # command_result = choice_process.communicate(input=plist.decode('utf-8'))
+        subprocess.check_output(choice_command, input=plist)
+    except subprocess.CalledProcessError:
+        return
+    except subprocess.TimeoutExpired:
+        # This is actually expected; tm_dialog does not terminate itself,
+        # for unclear reasons.
+        sys.stdout.write("«Timeout»")
+        return
+
+    # # Get the selected dictionary back
+    # choice = plistlib.loads(command_result)
+    #
+    # # Pull out the snippet text
+    # snippet_raw = choice["insert"]
+    #
+    # # Run the DIALOG command again to insert the snippet
+    # if not snippet_raw:
+    #     return
+    #
+    # # sys.stdout.write(snippet_raw)
+    #
+    # insert_command = [tm_dialog, "x-insert", "--snippet", snippet_raw]
+    # subprocess.call(insert_command)
+
+
+def get_completion_list(environ):
+    """
+    Call out to clang to get the list of completions for the cursor position.
+
+    Returns a list of dictionaries representing the completions, or None if
+    the invocation of clang failed.
+    """
+    doc = TMDocument(environ)
+    command = [
+        # Language options
+        "clang", "-cc1", "-xobjective-c", "-fblocks", "-fsyntax-only",
+        # Headers
+        "-isysroot", doc.sdk_path, "-I", "./",
+        # Document info
+        "-code-completion-at", "-:{}".format(doc.completion_location),
+        # Use stdin
+        "-"
+    ]
+
+    try:
+        command_result = subprocess.check_output(command, stdin=sys.stdin)
+    except subprocess.CalledProcessError:
+        return None
+
+    raw_completions = command_result.decode('utf-8')
+
+    return parse_completions(doc.current_word, raw_completions)
+
+def parse_completions(filter_word, completions):
+    """
+    Transform each completion into the correct dictionary format for
+    TextMate's `tm_dialog` tool, as documented in the `complete` function in
+    ~/Library/Application Support/TextMate/Managed/Bundles/Bundle Support.tmbundle/Support/shared/lib/ui.rb
+
+    { "display" : &lt;title shown in completions list&gt;,
+      "insert"  : &lt;snippet represented by this selection&gt;
+      "match"   : &lt;filter key (defaults to the value of "display") }
+
+    note: The "match" key is not currently used.
+    """
+
+    display_key = "display"
+    insert_key = "insert"
+
+    def parse_line(line):
+
+        ident_pattern = r"^COMPLETION: (\w(\w|:)+) :"
+        ident_match = re.match(ident_pattern, line)
+        if not ident_match:
+            return defaultdict(str)
+
+        identifier = ident_match.group(1)
+        snippet = sub_clang_arg_placeholders(line[ident_match.end():])
+
+        return {
+            display_key : identifier,
+            insert_key : snippet
+        }
+
+    include = lambda d: d[display_key].startswith(filter_word)
+    return filter(include, (parse_line(line) for line in completions.split('\n')))
+
+def sub_clang_arg_placeholders(insertion):
+    """
+    Swap out clang's argument placeholders, formatted as `&lt;#(TYPE)#&gt;`, for the
+    TextMate snippet format: `${INDEX:DEFAULT}`, or just `$INDEX` if no argument
+    name is present (as it is not for methods).
+    """
+
+    type_end_marker = "#]"
+    arg_groupname = "argname"
+
+    def replacement_counter():
+        def replacer(match):
+            replacer.count += 1
+            argname = match.group(arg_groupname)
+            placeholder_format = "${{{}:{}}}" if argname else "${}"
+            return placeholder_format.format(replacer.count, argname)
+        replacer.count = 0    # Attach counter directly to function instance
+        return replacer
+
+    # Drop (return) type
+    insertion = insertion.split(type_end_marker)[1]
+
+    pattern = r"&lt;#\((?P&lt;{}&gt;[^)]*)\)#&gt;".format(arg_groupname)
+
+    return re.sub(pattern, replacement_counter(), insertion)
+
+if __name__ == '__main__':
+    complete(os.environ)
+</string>
+	<key>input</key>
+	<string>document</string>
+	<key>inputFormat</key>
+	<string>text</string>
+	<key>keyEquivalent</key>
+	<string>~</string>
+	<key>name</key>
+	<string>Clang complete</string>
+	<key>outputCaret</key>
+	<string>afterOutput</string>
+	<key>outputFormat</key>
+	<string>text</string>
+	<key>outputLocation</key>
+	<string>discard</string>
+	<key>scope</key>
+	<string>source.objc</string>
+	<key>uuid</key>
+	<string>58B1A9D6-A429-4C5B-8C4B-80CAFD7A8188</string>
+	<key>version</key>
+	<integer>2</integer>
+</dict>
+</plist>
