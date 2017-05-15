@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>beforeRunningCommand</key>
+	<string>nop</string>
+	<key>command</key>
+	<string>#!/usr/bin/env python
+
+from os import environ
+import sys
+
+ASSUME_BEGIN = "NS_ASSUME_NONNULL_BEGIN"
+ASSUME_END = "NS_ASSUME_NONNULL_END"
+
+CURRENT_LINE = int(environ["TM_LINE_NUMBER"])
+
+lines = sys.stdin.readlines()
+head, tail = lines[:CURRENT_LINE - 1], lines[CURRENT_LINE:]
+
+head.extend((ASSUME_BEGIN, '\n'))
+tail.extend(('\n', ASSUME_END, '\n'))
+
+sys.stdout.writelines(head)
+sys.stdout.writelines(tail)
+</string>
+	<key>input</key>
+	<string>document</string>
+	<key>inputFormat</key>
+	<string>text</string>
+	<key>name</key>
+	<string>Wrap file in nullability audit macros</string>
+	<key>outputCaret</key>
+	<string>interpolateByChar</string>
+	<key>outputFormat</key>
+	<string>text</string>
+	<key>outputLocation</key>
+	<string>replaceDocument</string>
+	<key>scope</key>
+	<string>source.objc</string>
+	<key>tabTrigger</key>
+	<string>assume</string>
+	<key>uuid</key>
+	<string>AA715EE0-36D8-47AE-87DF-09D86005671A</string>
+	<key>version</key>
+	<integer>2</integer>
+</dict>
+</plist>

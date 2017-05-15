@@ -3,14 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>content</key>
-	<string>${1|static,extern|}${1/\S+/ /}NSString * const ${2:String} = @"${2/^k?((\w|\d)+)/$1/}";</string>
+	<string>static dispatch_once_t ${1:token};
+dispatch_once(&amp;$1, ^{
+    $2
+});</string>
 	<key>name</key>
-	<string>NSString constant definition</string>
+	<string>dispatch_once</string>
 	<key>scope</key>
-	<string>source.objc</string>
+	<string>meta.function-with-body.objc</string>
 	<key>tabTrigger</key>
-	<string>stringconst</string>
+	<string>dispatch_once</string>
 	<key>uuid</key>
-	<string>80D58D37-FDFC-468D-86F7-962F8D8FD9D1</string>
+	<string>194DDA83-EFA9-4D82-BAF6-514234047906</string>
 </dict>
 </plist>

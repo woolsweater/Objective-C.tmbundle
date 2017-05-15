@@ -3,14 +3,14 @@
 <plist version="1.0">
 <dict>
 	<key>content</key>
-	<string>${1|static,extern|}${1/\S+/ /}NSString * const ${2:String} = @"${2/^k?((\w|\d)+)/$1/}";</string>
+	<string>NS_ASSUME_NONNULL_END</string>
 	<key>name</key>
-	<string>NSString constant definition</string>
+	<string>Assume nonnull end</string>
 	<key>scope</key>
 	<string>source.objc</string>
 	<key>tabTrigger</key>
-	<string>stringconst</string>
+	<string>assume</string>
 	<key>uuid</key>
-	<string>80D58D37-FDFC-468D-86F7-962F8D8FD9D1</string>
+	<string>5EA750F2-A7CD-40CD-A03E-071A2230FCC0</string>
 </dict>
 </plist>

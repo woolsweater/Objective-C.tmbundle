@@ -5,7 +5,7 @@
 	<key>changed</key>
 	<dict>
 		<key>content</key>
-		<string>@property (${1|strong,weak,readonly,copy,retain,assign|}${2/.+/, /}${2:nonatomic${3/.+/, /}}${3|nullable,nonnull|}) ${4:NSSomeClass}${4/^((?!NS(U?Integer|Point|Size|Rect)|C[GF]|BOOL|SEL)[A-Z]\w*)|.*/${1:?${TM_C_POINTER: * }: }/}${5:${4/^(?:(BOOL)|(SEL)|[A-Z](?:[A-Z]+|[a-z]+)([A-Z]\w*))/${1:?flag:${2:?action:\l$3}}/}};</string>
+		<string>@property (${1|strong,weak,readonly,copy,retain,assign,class|}${2/.+/, /}${2:${1/^readonly$|(.+)/(?1:nonatomic)/}}${3/.+/, /}${3|nullable,nonnull|}) ${4:NSSomeClass}${4/^((?!NS(U?Integer|Point|Size|Rect)|C[GF]|BOOL|SEL)[A-Z]\w*(&lt;[^&gt;]*&gt;)?)|.*/${1:?${TM_C_POINTER: * }: }/}${5:${4/^(?:(BOOL)|(SEL)|[A-Z](?:[A-Z]+|[a-z]+)([A-Z]\w+)(&lt;[^&gt;]*&gt;)?)/${1:?flag:${2:?action:\l$3}}/}};</string>
 	</dict>
 	<key>isDelta</key>
 	<true/>
