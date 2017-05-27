@@ -5,7 +5,7 @@
 	<key>beforeRunningCommand</key>
 	<string>nop</string>
 	<key>command</key>
-	<string>#!/usr/local/bin/python3
+	<string>#!/usr/bin/env python3
 
 import re
 import os
@@ -20,7 +20,9 @@ class TMDocument:
     """
     def __init__(self, environ):
         # Supress KeyErrors for nonexistent keys in favor of returning None
-        self.environment = optionaldict(environ)
+        if not environ is optionaldict:
+            environ = optionaldict(environ)
+        self.environment = environ
 
     @property
     def completion_location(self):
@@ -68,7 +70,18 @@ class TMDocument:
     @property
     def current_word(self):
         return self.environment["TM_CURRENT_WORD"]
-
+        
+    @property
+    def indent_string(self):
+        """
+        The string for a new level of indent in this document. This consists of
+        spaces if TM_SOFT_TABS is YES, otherwise tab characters.
+        """
+        if not bool(self.environment["TM_SOFT_TABS"]):
+            return '\t'
+        tab_size = int(self.environment["TM_TAB_SIZE"])
+        return ' ' * tab_size
+        
 class optionaldict(defaultdict):
     """
     A defaultdict that disregards KeyErrors and returns None for missing keys.
@@ -76,82 +89,55 @@ class optionaldict(defaultdict):
     def __init__(self, *original, **kwargs):
         super().__init__(lambda: None, *original, **kwargs)
 
-def complete(environ):
+def complete(tm_dialog, document):
 
-    choices = list(get_completion_list(environ))
-    environment = optionaldict(environ)
+    choices = list(get_completion_list(document))
 
-    tm_dialog = environment["DIALOG"]
-    if not choices or not tm_dialog:
+    if not choices:
+        display_failure_message(tm_dialog)
         return
 
     choice_command = [
-        tm_dialog, "popup", #"--returnChoice",
-        "--alreadyTyped", environment["TM_CURRENT_WORD"],
-        # "--additionalWordCharacters", "'_'",
-        "--caseInsensitive"
+        tm_dialog, "popup",
+        "--alreadyTyped", document.current_word or "",
     ]
 
     # Put the choices dicts into a plist dict under the key "suggestions"
     plist = plistlib.dumps({"suggestions" : choices})
-    # plistIO = StringIO(plist.decode('utf-8'))
 
     # Run the popup command, passing that plist
-    # choice_process = subprocess.Popen(choice_command, stdin=subprocess.PIPE, stderr=os.devnull, stdout=os.devnull, close_fds=True)
     try:
-        # command_result = choice_process.communicate(input=plist.decode('utf-8'))
         subprocess.check_output(choice_command, input=plist)
-    except subprocess.CalledProcessError:
-        return
-    except subprocess.TimeoutExpired:
-        # This is actually expected; tm_dialog does not terminate itself,
-        # for unclear reasons.
-        sys.stdout.write("«Timeout»")
-        return
+        # subprocess.check_call(choice_command, stdin=read)
+    except subprocess.CalledProcessError as error:
+        sys.exit(error.returncode)
 
-    # # Get the selected dictionary back
-    # choice = plistlib.loads(command_result)
-    #
-    # # Pull out the snippet text
-    # snippet_raw = choice["insert"]
-    #
-    # # Run the DIALOG command again to insert the snippet
-    # if not snippet_raw:
-    #     return
-    #
-    # # sys.stdout.write(snippet_raw)
-    #
-    # insert_command = [tm_dialog, "x-insert", "--snippet", snippet_raw]
-    # subprocess.call(insert_command)
-
-
-def get_completion_list(environ):
+def get_completion_list(document):
     """
     Call out to clang to get the list of completions for the cursor position.
 
     Returns a list of dictionaries representing the completions, or None if
     the invocation of clang failed.
     """
-    doc = TMDocument(environ)
     command = [
         # Language options
         "clang", "-cc1", "-xobjective-c", "-fblocks", "-fsyntax-only",
         # Headers
-        "-isysroot", doc.sdk_path, "-I", "./",
+        "-isysroot", document.sdk_path, "-I", "./",
         # Document info
-        "-code-completion-at", "-:{}".format(doc.completion_location),
+        "-code-completion-at", "-:{}".format(document.completion_location),
         # Use stdin
         "-"
     ]
 
     try:
         command_result = subprocess.check_output(command, stdin=sys.stdin)
-    except subprocess.CalledProcessError:
-        return None
+    except subprocess.CalledProcessError as error:
+        sys.exit(error.returncode)
 
     raw_completions = command_result.decode('utf-8')
 
-    return parse_completions(doc.current_word, raw_completions)
+    return parse_completions(document.current_word, raw_completions)
 
 def parse_completions(filter_word, completions):
     """
@@ -161,27 +147,32 @@ def parse_completions(filter_word, completions):
 
     { "display" : &lt;title shown in completions list&gt;,
       "insert"  : &lt;snippet represented by this selection&gt;
-      "match"   : &lt;filter key (defaults to the value of "display") }
+      "match"   : &lt;filter key (defaults to the value of "display")&gt; }
 
-    note: The "match" key is not currently used.
+    note: The value of "match" is also inserted by the dialog tool when a
+    selection is made, after the tool trims the current word from the start.
     """
 
     display_key = "display"
     insert_key = "insert"
+    match_key = "match"
 
     def parse_line(line):
 
-        ident_pattern = r"^COMPLETION: (\w(\w|:)+) :"
-        ident_match = re.match(ident_pattern, line)
-        if not ident_match:
+        identifier_pattern = r"^COMPLETION: (\w(\w|:)+) :"
+        identifier_match = re.match(identifier_pattern, line)
+        if not identifier_match:
             return defaultdict(str)
 
-        identifier = ident_match.group(1)
-        snippet = sub_clang_arg_placeholders(line[ident_match.end():])
+        identifier = identifier_match.group(1)
+        snippet = sub_clang_arg_placeholders(line[identifier_match.end():])
+        # Split insertion text off from snippet
+        insertion_head, dollar, snippet = snippet.partition('$')
 
         return {
             display_key : identifier,
-            insert_key : snippet
+            insert_key : dollar + snippet,
+            match_key : insertion_head
         }
 
     include = lambda d: d[display_key].startswith(filter_word)
@@ -205,16 +196,31 @@ def sub_clang_arg_placeholders(insertion):
             return placeholder_format.format(replacer.count, argname)
         replacer.count = 0    # Attach counter directly to function instance
         return replacer
-
+        
     # Drop (return) type
     insertion = insertion.split(type_end_marker)[1]
+    # Split varargs into their own argument; Clang joins them to the previous
+    # type, e.g. "stringWithFormat:&lt;#(nonnull NSString *), ...#&gt;"
+    # Fortunately there will only ever be one instance of varargs per insertion.
+    insertion = re.sub(r", ...", r"#&gt;, &lt;#(...)", insertion, count=1)
 
     pattern = r"&lt;#\((?P&lt;{}&gt;[^)]*)\)#&gt;".format(arg_groupname)
 
     return re.sub(pattern, replacement_counter(), insertion)
 
+def display_failure_message(tm_dialog):
+    tooltip_command = [tm_dialog, "tooltip", "--text", "No completions found."]
+    subprocess.call(tooltip_command)
+
 if __name__ == '__main__':
-    complete(os.environ)
+    environment = optionaldict(os.environ)
+    
+    tm_dialog = environment["DIALOG"]
+    if not tm_dialog:
+        sys.stderr.write("$DIALOG tool unavailable")
+        sys.exit(-1)
+    
+    complete(tm_dialog, TMDocument(environment))
 </string>
 	<key>input</key>
 	<string>document</string>
@@ -227,9 +233,9 @@ if __name__ == '__main__':
 	<key>outputCaret</key>
 	<string>afterOutput</string>
 	<key>outputFormat</key>
-	<string>text</string>
+	<string>snippet</string>
 	<key>outputLocation</key>
-	<string>discard</string>
+	<string>atCaret</string>
 	<key>scope</key>
 	<string>source.objc</string>
 	<key>uuid</key>
