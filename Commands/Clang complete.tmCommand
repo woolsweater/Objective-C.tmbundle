@@ -12,6 +12,7 @@ import os
 import plistlib
 import subprocess
 import sys
+from glob import glob
 from collections import defaultdict
 
 class TMDocument:
@@ -23,6 +24,11 @@ class TMDocument:
         if not environ is optionaldict:
             environ = optionaldict(environ)
         self.environment = environ
+        
+    @property
+    def path(self):
+        """The value of `$TM_FILEPATH`; path to this file."""
+        return self.environment["TM_FILEPATH"]
 
     @property
     def completion_location(self):
@@ -56,6 +62,17 @@ class TMDocument:
             except subprocess.CalledProcessError:
                 return None
         return sdk_path.strip()
+    
+    @property
+    def completion_arch(self):
+        """
+        The value that should be passed to clang's `-arch` option for code
+        completion.
+        
+        The value is taken from the environment variable
+        `$OBJC_COMPLETION_ARCH`, defaulting to `x86_64` if that is not found.
+        """
+        return self.environment["OBJC_COMPLETION_ARCH"] or "x86_64"
 
     @property
     def project_dir(self):
@@ -121,14 +138,23 @@ def get_completion_list(document):
     """
     command = [
         # Language options
-        "clang", "-cc1", "-xobjective-c", "-fblocks", "-fsyntax-only",
-        # Headers
-        "-isysroot", document.sdk_path, "-I", "./",
+        "clang", "-xobjective-c", "-fblocks", "-fsyntax-only", "-fmodules",
+        # System info
+        "-isysroot", document.sdk_path, "-arch", document.completion_arch,
         # Document info
-        "-code-completion-at", "-:{}".format(document.completion_location),
+        f"-I{document.project_dir}",
+        "-Xclang", "-code-completion-at", 
+        "-Xclang", f"-:{format(document.completion_location)}",
         # Use stdin
         "-"
     ]
+    
+    # source_glob = f"{document.project_dir}/**/*."
+    # # command += glob(source_glob + 'h', recursive=True)
+    # not_this_document = lambda p: p != document.path
+    # other_sources = filter(not_this_document,
+    #                        glob(source_glob + 'm', recursive=True))
+    # command += other_sources
 
     try:
         command_result = subprocess.check_output(command, stdin=sys.stdin)
@@ -158,23 +184,30 @@ def parse_completions(filter_word, completions):
     match_key = "match"
 
     def parse_line(line):
+        
+        # clang puts the literal string "Pattern" in place of the identifier
+        # in certain cases. The reason is unclear.
+        clang_pattern_literal = "Pattern"
 
         identifier_pattern = r"^COMPLETION: (\w(\w|:)+) :"
         identifier_match = re.match(identifier_pattern, line)
         if not identifier_match:
             return defaultdict(str)
-
+            
         identifier = identifier_match.group(1)
         snippet = sub_clang_arg_placeholders(line[identifier_match.end():])
         # Split insertion text off from snippet
         insertion_head, dollar, snippet = snippet.partition('$')
 
+        if identifier == clang_pattern_literal:
+            identifier = insertion_head
+        
         return {
             display_key : identifier,
-            insert_key : dollar + snippet,
+            insert_key : dollar + snippet if snippet else "",
             match_key : insertion_head
         }
-
+    
     include = lambda d: d[display_key].startswith(filter_word)
     return filter(include, (parse_line(line) for line in completions.split('\n')))
 
@@ -196,7 +229,11 @@ def sub_clang_arg_placeholders(insertion):
             return placeholder_format.format(replacer.count, argname)
         replacer.count = 0    # Attach counter directly to function instance
         return replacer
-        
+    
+    if not type_end_marker in insertion:
+        # Drop initial space
+        return insertion[1:]
+    
     # Drop (return) type
     insertion = insertion.split(type_end_marker)[1]
     # Split varargs into their own argument; Clang joins them to the previous
