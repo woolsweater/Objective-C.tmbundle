@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>command</key>
+	<string>#!/usr/bin/env python3
+
+from os import environ
+import sys
+
+selection = sys.stdin.read()
+
+PRAGMA_PUSH = "#pragma clang diagnostic push"
+PRAGMA_IGNORE = '#pragma clang diagnostic ignored "-W$1"'
+PRAGMA_POP = "#pragma clang diagnostic pop"
+
+output = f"""{PRAGMA_PUSH}
+{PRAGMA_IGNORE}
+
+$0{selection}
+{PRAGMA_POP}
+"""
+
+sys.stdout.write(output)
+</string>
+	<key>keyEquivalent</key>
+	<string>^W</string>
+	<key>name</key>
+	<string>Wrap selection in ignored warning</string>
+	<key>outputFormat</key>
+	<string>snippet</string>
+	<key>scope</key>
+	<string>source.objc</string>
+	<key>uuid</key>
+	<string>03DAEFC3-C378-4EBB-8FAD-22FFC55E345E</string>
+</dict>
+</plist>

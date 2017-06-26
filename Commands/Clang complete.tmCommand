@@ -75,6 +75,36 @@ class TMDocument:
         return self.environment["OBJC_COMPLETION_ARCH"] or "x86_64"
 
     @property
+    def completion_include_dirs(self):
+        """
+        A list of paths that should be passed to clang's -I option for code
+        completion.
+        
+        This should be specified in an environment variable `OBJC_COMPLETION_INCLUDES` as
+        a comma-separated list of paths, e.g. `./include,/Users/me/development/include`
+        No tilde expansion is performed.
+        """
+        includes = self.environment["OBJC_COMPLETION_INCLUDES"]
+        if not includes:
+            return []
+        return includes.split(',')
+        
+    @property
+    def completion_frameworks(self):
+        """
+        A list of paths that should be passed to clang's -F option for code
+        completion.
+        
+        This should be specified in an environment variable `OBJC_COMPLETION_FRAMEWORKS` as
+        a comma-separated list of paths, e.g. `./Frameworks,/Users/me/development/Frameworks`
+        No tilde expansion is performed.
+        """
+        frameworks = self.environment["OBJC_COMPLETION_FRAMEWORKS"]
+        if not frameworks:
+            return []
+        return frameworks.split(',')
+    
+    @property
     def project_dir(self):
         """
         Path to the source root of the current project: either the value of
@@ -136,15 +166,27 @@ def get_completion_list(document):
     Returns a list of dictionaries representing the completions, or None if
     the invocation of clang failed.
     """
+    
+    def format_include_paths(flag, paths):
+        return ' '.join(map(lambda p: f"{flag}{p}", paths))
+        
+    framework_includes = ""
+    if document.completion_frameworks:
+        framework_includes = format_include_paths("-F", document.completion_frameworks)
+    includes = ""
+    if document.completion_include_dirs:
+        includes = format_include_paths("-I", document.completion_include_dirs)
+    
     command = [
         # Language options
         "clang", "-xobjective-c", "-fblocks", "-fsyntax-only", "-fmodules",
         # System info
         "-isysroot", document.sdk_path, "-arch", document.completion_arch,
+        # Other headers
+        framework_includes, includes, f"-I{document.project_dir}",
         # Document info
-        f"-I{document.project_dir}",
-        "-Xclang", "-code-completion-at", 
-        "-Xclang", f"-:{format(document.completion_location)}",
+        "-Xclang", "-code-completion-at",
+        "-Xclang", f"-:{document.completion_location}",
         # Use stdin
         "-"
     ]

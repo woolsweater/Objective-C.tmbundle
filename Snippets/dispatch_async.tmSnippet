@@ -3,17 +3,14 @@
 <plist version="1.0">
 <dict>
 	<key>content</key>
-	<string>static dispatch_once_t ${1:token};
-dispatch_once(&amp;$1, ^{
-    $2
-});</string>
+	<string>dispatch_async(${1:dispatch_get_main_queue()}, ^{$2});</string>
 	<key>name</key>
-	<string>dispatch_once</string>
+	<string>dispatch_async</string>
 	<key>scope</key>
 	<string>meta.function-with-body.objc</string>
 	<key>tabTrigger</key>
-	<string>donce</string>
+	<string>async</string>
 	<key>uuid</key>
-	<string>194DDA83-EFA9-4D82-BAF6-514234047906</string>
+	<string>29E2027B-23C6-4D60-8355-E2A39A3E7DDF</string>
 </dict>
 </plist>
